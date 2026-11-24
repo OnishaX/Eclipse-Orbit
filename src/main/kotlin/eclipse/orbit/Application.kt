@@ -31,9 +31,12 @@ import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.close
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.seconds
 
@@ -44,9 +47,32 @@ class HttpError(val status: HttpStatusCode, message: String) : RuntimeException(
 @Serializable data class PairStartBody(val name: String, val model: String = "Android TV")
 @Serializable data class PairPollBody(val secret: String)
 @Serializable data class ApproveBody(val name: String? = null)
+@Serializable data class ProfileIdsBody(val profileIds: List<String>)
+@Serializable data class ProfileVaultBody(val baseRevision: Long, val salt: String, val nonce: String, val ciphertext: String)
+@Serializable data class ProfileVaultList(val vaults: List<ProfileVault>)
+@Serializable data class AssignedProfilesBody(val profiles: List<AssignedProfile>)
+@Serializable data class PassphraseVerifierBody(val verifier: PassphraseVerifier?)
+
+private fun validVault(body: ProfileVaultBody): Boolean {
+    if (body.baseRevision < 0 || body.salt.length > 24 || body.nonce.length > 16 ||
+        body.ciphertext.length > 174764) return false
+    return try {
+        val decoder = Base64.getDecoder()
+        decoder.decode(body.salt).size == 16 &&
+            decoder.decode(body.nonce).size == 12 &&
+            decoder.decode(body.ciphertext).size in 16..131072
+    } catch (_: IllegalArgumentException) {
+        false
+    }
+}
+
+private fun validName(name: String): String = name.trim().also {
+    if (it.length !in 1..32) throw HttpError(HttpStatusCode.BadRequest, "Use a name of 1 to 32 characters")
+}
 
 private const val SESSION_COOKIE = "orbit_session"
 private const val SESSION_TTL_MS = 7L * 24 * 60 * 60 * 1000
+private const val PASSPHRASE_VERIFIER_CIPHERTEXT_BYTES = 27 + 16
 
 fun main() {
     val config = OrbitConfig.fromEnv()
@@ -112,6 +138,7 @@ fun Application.orbit(config: OrbitConfig, store: Store) {
         put("lastSeen", d.lastSeen)
         put("online", signals.isOnline(d.id))
         put("hasBackup", store.hasBackup(d.id))
+        put("profileIds", JsonArray(d.profileIds.map(::JsonPrimitive)))
     }
 
     fun Route.adminApi() = route("/api/admin") {
@@ -152,15 +179,21 @@ fun Application.orbit(config: OrbitConfig, store: Store) {
             store.removeDevice(id)
             call.respond(mapOf("ok" to true))
         }
+        put("/devices/{id}/profiles") {
+            call.admin()
+            val ids = call.receive<ProfileIdsBody>().profileIds
+            val device = try { store.setDeviceProfiles(call.parameters["id"]!!, ids) }
+            catch (_: IllegalArgumentException) { throw HttpError(HttpStatusCode.BadRequest, "Invalid user assignment") }
+            if (device == null) throw HttpError(HttpStatusCode.NotFound, "Device not found")
+            call.respond(deviceJson(device))
+        }
         get("/profiles") {
             call.admin()
             call.respond(store.profiles())
         }
         post("/profiles") {
             call.admin()
-            val name = call.receive<NameBody>().name.trim()
-            if (name.isEmpty()) throw HttpError(HttpStatusCode.BadRequest, "Name required")
-            call.respond(HttpStatusCode.Created, store.addProfile(name))
+            call.respond(HttpStatusCode.Created, store.addProfile(validName(call.receive<NameBody>().name)))
         }
         delete("/profiles/{id}") {
             call.admin()
@@ -231,6 +264,51 @@ fun Application.orbit(config: OrbitConfig, store: Store) {
         get("/profiles") {
             call.device()
             call.respond(store.profiles())
+        }
+        get("/profile-vaults") {
+            val device = call.device()
+            val vaults = store.assignedProfileVaults(device.id)
+                ?: throw HttpError(HttpStatusCode.Unauthorized, "Unknown device")
+            call.respond(ProfileVaultList(vaults))
+        }
+        get("/assigned-profiles") {
+            val device = call.device()
+            val profiles = store.assignedProfiles(device.id)
+                ?: throw HttpError(HttpStatusCode.Unauthorized, "Unknown device")
+            call.respond(AssignedProfilesBody(profiles))
+        }
+        get("/passphrase-verifier") {
+            val device = call.device()
+            val (found, verifier) = store.passphraseVerifier(device.id)
+            if (!found) throw HttpError(HttpStatusCode.Unauthorized, "Unknown device")
+            call.respond(PassphraseVerifierBody(verifier))
+        }
+        put("/passphrase-verifier") {
+            val device = call.device()
+            val verifier = call.receive<PassphraseVerifier>()
+            if (!validVault(ProfileVaultBody(0, verifier.salt, verifier.nonce, verifier.ciphertext)) ||
+                Base64.getDecoder().decode(verifier.ciphertext).size != PASSPHRASE_VERIFIER_CIPHERTEXT_BYTES) {
+                throw HttpError(HttpStatusCode.BadRequest, "Invalid passphrase verifier")
+            }
+            when (val result = store.savePassphraseVerifier(device.id, verifier)) {
+                is SavePassphraseVerifierResult.Saved -> call.respond(HttpStatusCode.Created, result.verifier)
+                is SavePassphraseVerifierResult.Existing -> call.respond(result.verifier)
+                SavePassphraseVerifierResult.ExistingVaults ->
+                    throw HttpError(HttpStatusCode.Conflict, "Existing profiles require passphrase migration")
+                SavePassphraseVerifierResult.UnknownDevice ->
+                    throw HttpError(HttpStatusCode.Unauthorized, "Unknown device")
+            }
+        }
+        put("/profile-vaults/{id}") {
+            val device = call.device()
+            val body = call.receive<ProfileVaultBody>()
+            if (!validVault(body)) throw HttpError(HttpStatusCode.BadRequest, "Invalid encrypted profile")
+            when (val result = store.saveProfileVault(device.id, call.parameters["id"]!!,
+                body.baseRevision, body.salt, body.nonce, body.ciphertext)) {
+                is SaveProfileVaultResult.Saved -> call.respond(result.vault)
+                SaveProfileVaultResult.NotAssigned -> throw HttpError(HttpStatusCode.Forbidden, "User not assigned to this device")
+                SaveProfileVaultResult.Conflict -> throw HttpError(HttpStatusCode.Conflict, "Profile changed; fetch the latest version")
+            }
         }
         get("/devices") {
             val self = call.device()

@@ -20,6 +20,34 @@ data class Admin(val username: String, val passwordHash: String, val salt: Strin
 data class Profile(val id: String, val name: String, val createdAt: Long)
 
 @Serializable
+data class ProfileVault(
+    val profileId: String,
+    val revision: Long,
+    val salt: String,
+    val nonce: String,
+    val ciphertext: String,
+)
+
+@Serializable
+data class PassphraseVerifier(val salt: String, val nonce: String, val ciphertext: String)
+
+sealed interface SavePassphraseVerifierResult {
+    data class Saved(val verifier: PassphraseVerifier) : SavePassphraseVerifierResult
+    data class Existing(val verifier: PassphraseVerifier) : SavePassphraseVerifierResult
+    data object ExistingVaults : SavePassphraseVerifierResult
+    data object UnknownDevice : SavePassphraseVerifierResult
+}
+
+@Serializable
+data class AssignedProfile(val profile: Profile, val vault: ProfileVault?)
+
+sealed interface SaveProfileVaultResult {
+    data class Saved(val vault: ProfileVault) : SaveProfileVaultResult
+    data object NotAssigned : SaveProfileVaultResult
+    data object Conflict : SaveProfileVaultResult
+}
+
+@Serializable
 data class Device(
     val id: String,
     val name: String,
@@ -27,6 +55,7 @@ data class Device(
     val tokenHash: String,
     val pairedAt: Long,
     val lastSeen: Long,
+    val profileIds: List<String> = emptyList(),
 )
 
 @Serializable
@@ -35,6 +64,8 @@ data class State(
     val admins: List<Admin> = emptyList(),
     val profiles: List<Profile> = emptyList(),
     val devices: List<Device> = emptyList(),
+    val profileVaults: List<ProfileVault> = emptyList(),
+    val passphraseVerifier: PassphraseVerifier? = null,
 )
 
 /** JSON-file persistence under the data volume. All mutations are serialised through [lock]. */
@@ -43,7 +74,7 @@ class Store(private val dataDir: Path) {
     private val stateFile = dataDir.resolve("state.json")
     private val backupsDir = dataDir.resolve("backups")
     private val lock = Any()
-    private var state: State
+    @Volatile private var state: State
 
     init {
         Files.createDirectories(backupsDir)
@@ -84,7 +115,61 @@ class Store(private val dataDir: Path) {
     }
 
     fun removeProfile(id: String) = synchronized(lock) {
-        update { s -> s.copy(profiles = s.profiles.filterNot { it.id == id }) }
+        update { s ->
+            s.copy(profiles = s.profiles.filterNot { it.id == id },
+                devices = s.devices.map { d -> d.copy(profileIds = d.profileIds - id) },
+                profileVaults = s.profileVaults.filterNot { it.profileId == id })
+        }
+    }
+
+    fun assignedProfileVaults(deviceId: String): List<ProfileVault>? = synchronized(lock) {
+        val device = state.devices.firstOrNull { it.id == deviceId } ?: return null
+        state.profileVaults.filter { it.profileId in device.profileIds }
+    }
+
+    fun assignedProfiles(deviceId: String): List<AssignedProfile>? = synchronized(lock) {
+        val device = state.devices.firstOrNull { it.id == deviceId } ?: return null
+        state.profiles.filter { it.id in device.profileIds }.map { profile ->
+            AssignedProfile(profile, state.profileVaults.firstOrNull { it.profileId == profile.id })
+        }
+    }
+
+    fun passphraseVerifier(deviceId: String): Pair<Boolean, PassphraseVerifier?> = synchronized(lock) {
+        if (state.devices.none { it.id == deviceId }) return false to null
+        true to state.passphraseVerifier
+    }
+
+    fun savePassphraseVerifier(deviceId: String, verifier: PassphraseVerifier): SavePassphraseVerifierResult =
+        synchronized(lock) {
+            if (state.devices.none { it.id == deviceId }) return SavePassphraseVerifierResult.UnknownDevice
+            state.passphraseVerifier?.let { return SavePassphraseVerifierResult.Existing(it) }
+            if (state.profileVaults.isNotEmpty()) return SavePassphraseVerifierResult.ExistingVaults
+            update { it.copy(passphraseVerifier = verifier) }
+            SavePassphraseVerifierResult.Saved(verifier)
+        }
+
+    fun saveProfileVault(deviceId: String, profileId: String, baseRevision: Long,
+                         salt: String, nonce: String, ciphertext: String): SaveProfileVaultResult = synchronized(lock) {
+        val device = state.devices.firstOrNull { it.id == deviceId }
+        if (device == null || profileId !in device.profileIds ||
+            state.profiles.none { it.id == profileId }) return SaveProfileVaultResult.NotAssigned
+        val current = state.profileVaults.firstOrNull { it.profileId == profileId }
+        val revision = current?.revision ?: 0L
+        if (baseRevision != revision || revision == Long.MAX_VALUE) return SaveProfileVaultResult.Conflict
+        val saved = ProfileVault(profileId, revision + 1, salt, nonce, ciphertext)
+        update { s -> s.copy(profileVaults = s.profileVaults.filterNot { it.profileId == profileId } + saved) }
+        SaveProfileVaultResult.Saved(saved)
+    }
+
+    fun setDeviceProfiles(deviceId: String, profileIds: List<String>): Device? = synchronized(lock) {
+        val device = state.devices.firstOrNull { it.id == deviceId } ?: return null
+        val known = state.profiles.map { it.id }.toSet()
+        require(profileIds.distinct().size == profileIds.size && profileIds.all { it in known }) {
+            "Invalid user assignment"
+        }
+        val updated = device.copy(profileIds = profileIds)
+        update { s -> s.copy(devices = s.devices.map { if (it.id == deviceId) updated else it }) }
+        updated
     }
 
     /** Registers a device and returns it with its plaintext bearer token (only ever returned once). */
@@ -122,11 +207,12 @@ class Store(private val dataDir: Path) {
     fun hasBackup(deviceId: String): Boolean = Files.exists(backupsDir.resolve("$deviceId.json"))
 
     private fun update(transform: (State) -> State) {
-        state = transform(state)
-        save()
+        val next = transform(state)
+        save(next)
+        state = next
     }
 
-    private fun save() = writeAtomically(stateFile, json.encodeToString(State.serializer(), state))
+    private fun save(value: State = state) = writeAtomically(stateFile, json.encodeToString(State.serializer(), value))
 
     private fun writeAtomically(target: Path, content: String) {
         val tmp = target.resolveSibling("${target.fileName}.tmp")

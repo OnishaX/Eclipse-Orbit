@@ -18,6 +18,7 @@ dependencies {
     implementation("io.ktor:ktor-server-status-pages:$ktorVersion")
     implementation("io.ktor:ktor-server-call-logging:$ktorVersion")
     implementation("ch.qos.logback:logback-classic:1.5.18")
+    testImplementation(kotlin("test"))
 }
 
 kotlin {

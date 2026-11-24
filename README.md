@@ -1,8 +1,8 @@
 # Orbit
 
-Orbit is a self-hosted server for your Eclipse devices on the local network. It
-keeps Eclipse users, settings and devices in one place, and gives you a web
-dashboard to manage them from a phone or computer.
+Orbit is a self-hosted server for your Eclipse devices on the local network,
+with a web dashboard for managing devices and Orbit users. Roaming user sync is
+experimental; settings backup and Marketplace sync are not yet available.
 
 ## Run it
 
@@ -47,7 +47,7 @@ Then, on a NAS or any other machine, you need only `compose.yaml` with
 ## Add device to Orbit
 
 1. On the TV, choose **Add device to Orbit** during onboarding or in
-   **Settings › Orbit**. The TV finds the server, calls `POST /api/v1/pair`, and
+   **Settings › Connections › Orbit**. The TV finds the server, calls `POST /api/v1/pair`, and
    shows `pairUrl` as a QR code with the six-character code.
 2. Scan the QR code with your phone, sign in to the dashboard, check that the
    code matches the TV, name the device, and choose **Add to Orbit**.
@@ -55,6 +55,18 @@ Then, on a NAS or any other machine, you need only `compose.yaml` with
    it receives its device token once and finishes setup by itself.
 
 Pairing codes expire after 10 minutes by default (`ORBIT_PAIRING_TTL_SECONDS`).
+
+The dashboard can assign Orbit users to a device. On the TV, open
+**Settings › Connections › Orbit**, set the same strong Orbit passphrase on
+each device, and choose **Orbit users**. For each assigned user, add a separate
+local user or explicitly link an existing one. Linking a PIN-protected user
+requires the PIN, and a settings choice is offered when necessary. New users
+without an existing Orbit profile start without a PIN.
+
+Linked users sync while the Eclipse launcher activity is running. Remote
+changes are deferred until Home is safe to update; conflicts require an explicit
+choice in Orbit users. Assignments never automatically remove local users.
+This feature is still experimental, so keep local copies of important settings.
 
 ## Configuration
 
@@ -77,22 +89,47 @@ Device requests send `Authorization: Bearer <token>`.
 | `GET /api/v1/info` | Server identity (no authentication) |
 | `POST /api/v1/pair`, `POST /api/v1/pair/{code}/poll` | QR pairing |
 | `GET /api/v1/me`, `GET /api/v1/devices`, `GET /api/v1/profiles` | Device, peer devices and Eclipse users |
+| `GET /api/v1/profile-vaults`, `PUT /api/v1/profile-vaults/{id}` | Encrypted-profile storage foundation; not yet used by Eclipse |
+| `GET /api/v1/assigned-profiles` | Assigned users and their encrypted profiles in one consistent response |
+| `GET` / `PUT /api/v1/passphrase-verifier` | Read or initialize the encrypted, write-once shared-passphrase verifier |
 | `DELETE /api/v1/me` | Leave Orbit (removes this device and its backup) |
-| `PUT` / `GET /api/v1/backup` | Back up and restore this device's Eclipse settings (JSON) |
+| `PUT` / `GET /api/v1/backup` | Store or retrieve a device's JSON backup (not yet used by Eclipse; not encrypted by Orbit) |
 | `WS /api/v1/signal` | Relays `{to, type, payload}` between devices and adds `from`; also sends `presence` events |
 
 The signalling socket handles messaging, file-sharing offers and WebRTC call
 setup (offer, answer and ICE). Call audio and video go directly between devices
 on the LAN.
 
+Profile vault writes require assignment to the device and a `baseRevision`;
+stale writes return HTTP 409. Vaults use base64-encoded 16-byte salt, 12-byte
+nonce and AES-256-GCM ciphertext with its 16-byte tag. Eclipse derives the key
+from the shared passphrase using PBKDF2-HMAC-SHA256 with 310,000 iterations;
+the authenticated data is `eclipse-orbit-profile-v1:<serverId>:<profileId>`.
+Orbit only validates the envelope, not whether a client actually encrypted
+the contents. Eclipse's experimental sync does not run while its launcher
+activity is stopped by another app.
+Use HTTPS for transport: encryption does not protect device tokens sent over
+Orbit's default HTTP connection.
+The verifier encrypts `eclipse-orbit-passphrase-v1` using the same profile
+cipher and the associated-data profile ID `passphrase-verifier`. The first
+initializer wins; every device must decrypt it before synchronizing. Existing
+experimental vaults created without a verifier require migration and cannot
+initialize one automatically. The verifier allows offline passphrase guessing
+if Orbit's data is exposed, so use a strong passphrase.
+The experimental Eclipse profile snapshot includes the user name, colour, PIN
+verifier and portable preferences. Device-specific input mappings, install
+flags, last focus, USB folder grants, permission prompts, and device-encrypted
+media connections are excluded.
+
 ## Roadmap
 
-- Eclipse client: discovery, QR onboarding, and backup in Settings
-- Marketplace install sync for each user
+- Passphrase-encrypted settings backup and restore, including sign-ins, offered
+  during onboarding and in Settings
+- Harden and validate roaming user sync, including lifecycle and recovery cases
+- Optional Marketplace sync or one-time install, excluding inputs
 - Messaging and AirDrop-style file sharing, with file transfers over WebRTC
   data channels or Orbit upload/download
 - Voice calls, then video and group video (group calls may need an SFU)
-- Assign Eclipse users to devices from the dashboard
 
 ## Development
 
