@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
 # ---- Build ---------------------------------------------------------------
-FROM gradle:9.9.2-jdk21 AS build
+# JVM output is platform-independent, so compile natively once and reuse it for every target platform.
+FROM --platform=$BUILDPLATFORM gradle:9.9.2-jdk21 AS build
 WORKDIR /src
 
 # Resolve dependencies in their own layer so source edits don't re-download them.
