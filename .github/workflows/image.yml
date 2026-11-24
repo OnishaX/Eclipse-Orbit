@@ -33,7 +33,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository_owner }}/orbit
+          images: ghcr.io/${{ github.repository_owner }}/eclipse-orbit
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=match,pattern=v(.*),group=1

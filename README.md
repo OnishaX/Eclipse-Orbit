@@ -16,8 +16,8 @@ Open `http://<server-ip>:7340` and create the admin account. You can also set
 Without Compose:
 
 ```sh
-docker build -t orbit .
-docker run -d --name orbit --network host -v orbit-data:/data orbit
+docker build -t eclipse-orbit .
+docker run -d --name eclipse-orbit --network host -v orbit-data:/data eclipse-orbit
 ```
 
 Host networking lets TVs find Orbit with UDP broadcast. If you publish ports
@@ -32,7 +32,7 @@ at port 7340.
 
 [image.yml](.github/workflows/image.yml) builds Orbit for
 `linux/amd64` and `linux/arm64` and publishes it to
-`ghcr.io/onishax/orbit` in the GitHub Container Registry:
+`ghcr.io/onishax/eclipse-orbit` in the GitHub Container Registry:
 
 - `latest`: every push to `main` (pushes that change only Markdown files are skipped)
 - `1.2.0`: a pushed `v1.2.0` tag
@@ -42,7 +42,7 @@ Pull requests build the image but don't publish it. New GHCR packages are
 private. To let other machines pull without signing in, open the package on
 GitHub, choose **Package settings**, and change its visibility to **Public**.
 Then, on a NAS or any other machine, you need only `compose.yaml` with
-`image: ghcr.io/onishax/orbit:latest` and the `build:` line removed.
+`image: ghcr.io/onishax/eclipse-orbit:latest` and the `build:` line removed.
 
 ## Add device to Orbit
 

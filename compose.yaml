@@ -1,9 +1,9 @@
 services:
-  orbit:
+  eclipse-orbit:
     build: .
-    # Once published, use the prebuilt image instead of building (remove `build`):
-    # image: ghcr.io/onishax/orbit:latest
-    container_name: orbit
+    # Remove `build` to use the published image without the source tree.
+    image: ghcr.io/onishax/eclipse-orbit:latest
+    container_name: eclipse-orbit
     restart: unless-stopped
     # Host networking lets Eclipse devices find the server via UDP broadcast and keeps
     # future peer-to-peer call traffic on the LAN. Remove it and uncomment `ports` if you
