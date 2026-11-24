@@ -8,6 +8,7 @@ services:
     # Host networking lets Eclipse devices find the server via UDP broadcast and keeps
     # future peer-to-peer call traffic on the LAN. Remove it and uncomment `ports` if you
     # only need the dashboard/API (devices will then need the server URL entered manually).
+    # Docker Desktop (macOS/Windows): turn on Settings > Resources > Network > Enable host networking.
     network_mode: host
     # ports:
     #   - "7340:7340/tcp"

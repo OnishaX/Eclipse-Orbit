@@ -2,15 +2,16 @@
 
 # ---- Build ---------------------------------------------------------------
 # JVM output is platform-independent, so compile natively once and reuse it for every target platform.
-FROM --platform=$BUILDPLATFORM gradle:9.9.2-jdk21 AS build
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk-noble AS build
 WORKDIR /src
 
-# Resolve dependencies in their own layer so source edits don't re-download them.
-COPY settings.gradle.kts build.gradle.kts ./
-RUN gradle dependencies --no-daemon -q > /dev/null
+# Resolve Gradle and dependencies in their own layer so source edits don't re-download them.
+COPY gradlew settings.gradle.kts build.gradle.kts ./
+COPY gradle ./gradle
+RUN ./gradlew dependencies --no-daemon -q > /dev/null
 
 COPY src ./src
-RUN gradle installDist --no-daemon -q
+RUN ./gradlew installDist --no-daemon -q
 
 # ---- Runtime -------------------------------------------------------------
 FROM eclipse-temurin:21-jre-noble

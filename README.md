@@ -24,6 +24,10 @@ Host networking lets TVs find Orbit with UDP broadcast. If you publish ports
 instead (`-p 7340:7340 -p 7341:7341/udp`), discovery usually won't cross Docker's
 bridge network, so devices need the server URL entered by hand.
 
+On Docker Desktop for macOS or Windows, turn on **Settings › Resources ›
+Network › Enable host networking**. Without it, the dashboard isn't reachable
+at port 7340.
+
 ## Published image
 
 [image.yml](.github/workflows/image.yml) builds Orbit for
