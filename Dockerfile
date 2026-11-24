@@ -21,8 +21,8 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd --system orbit \
  && useradd --system --gid orbit --home-dir /app --shell /usr/sbin/nologin orbit \
- && mkdir -p /data \
- && chown orbit:orbit /data
+ && mkdir -p /data /storage \
+ && chown orbit:orbit /data /storage
 
 WORKDIR /app
 COPY --from=build --chown=orbit:orbit /src/build/install/orbit ./
@@ -32,8 +32,8 @@ ENV ORBIT_DATA_DIR=/data \
     ORBIT_DISCOVERY_PORT=7341 \
     JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
 
-# Users, devices, settings backups (and later, Marketplace and file shares) live here.
-VOLUME ["/data"]
+# State and backups use /data; /storage is reserved for future features.
+VOLUME ["/data", "/storage"]
 
 # 7340/tcp: dashboard, device API and WebSocket signalling
 # 7341/udp: LAN discovery ("who is Orbit?")

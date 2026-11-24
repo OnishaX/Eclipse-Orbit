@@ -17,8 +17,12 @@ Without Compose:
 
 ```sh
 docker build -t eclipse-orbit .
-docker run -d --name eclipse-orbit --network host -v orbit-data:/data eclipse-orbit
+docker run -d --name eclipse-orbit --network host -v orbit-data:/data -v orbit-storage:/storage eclipse-orbit
 ```
+
+The `orbit-data` volume holds Orbit's current state and backups. The separate
+`orbit-storage` volume is reserved for future storage features and is not
+currently used by Orbit.
 
 Host networking lets TVs find Orbit with UDP broadcast. If you publish ports
 instead (`-p 7340:7340 -p 7341:7341/udp`), discovery usually won't cross Docker's

@@ -21,6 +21,8 @@ services:
       # ORBIT_PUBLIC_URL: "https://orbit.home.example"
     volumes:
       - orbit-data:/data
+      - orbit-storage:/storage
 
 volumes:
   orbit-data:
+  orbit-storage:
