@@ -222,6 +222,12 @@ fun Application.orbit(config: OrbitConfig, store: Store) {
         get("/me") {
             call.respond(deviceJson(call.device()))
         }
+        delete("/me") {
+            val device = call.device()
+            signals.disconnect(device.id)
+            store.removeDevice(device.id)
+            call.respond(mapOf("ok" to true))
+        }
         get("/profiles") {
             call.device()
             call.respond(store.profiles())

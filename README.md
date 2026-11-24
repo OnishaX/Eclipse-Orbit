@@ -77,6 +77,7 @@ Device requests send `Authorization: Bearer <token>`.
 | `GET /api/v1/info` | Server identity (no authentication) |
 | `POST /api/v1/pair`, `POST /api/v1/pair/{code}/poll` | QR pairing |
 | `GET /api/v1/me`, `GET /api/v1/devices`, `GET /api/v1/profiles` | Device, peer devices and Eclipse users |
+| `DELETE /api/v1/me` | Leave Orbit (removes this device and its backup) |
 | `PUT` / `GET /api/v1/backup` | Back up and restore this device's Eclipse settings (JSON) |
 | `WS /api/v1/signal` | Relays `{to, type, payload}` between devices and adds `from`; also sends `presence` events |
 
