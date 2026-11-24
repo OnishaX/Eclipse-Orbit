@@ -114,6 +114,19 @@ class Store(private val dataDir: Path) {
         profile
     }
 
+    fun createDeviceProfile(deviceId: String, id: String, name: String): Profile? = synchronized(lock) {
+        val device = state.devices.firstOrNull { it.id == deviceId } ?: return null
+        val existing = state.profiles.firstOrNull { it.id == id }
+        if (existing != null) {
+            require(id in device.profileIds) { "User ID already exists" }
+            return existing
+        }
+        val profile = Profile(id, name, System.currentTimeMillis())
+        update { s -> s.copy(profiles = s.profiles + profile,
+            devices = s.devices.map { if (it.id == deviceId) it.copy(profileIds = it.profileIds + id) else it }) }
+        profile
+    }
+
     fun removeProfile(id: String) = synchronized(lock) {
         update { s ->
             s.copy(profiles = s.profiles.filterNot { it.id == id },

@@ -61,7 +61,7 @@
     </div>
 
     <h2>Devices</h2>
-    <p class="sub">After assigning users, open Settings › Connections › Orbit on the TV to add or link them. User sync is experimental.</p>
+    <p class="sub">After assigning users, add them in Settings › Connections › Eclipse Orbit, or link a TV user in their Connections settings. User sync is experimental.</p>
     <div class="card" id="devices"></div>
 
     <h2>Users</h2>
@@ -139,7 +139,7 @@ async function refresh() {
       <div class="grow"><div>${esc(d.name)}</div><div class="sub">${esc(d.model)} · last seen ${ago(d.lastSeen)}${d.hasBackup ? " · backed up" : ""}</div></div>
       <button class="ghost" data-assign-device="${esc(d.id)}">Users (${d.profileIds.length})</button>
       <button class="danger" data-remove-device="${esc(d.id)}">Remove</button>
-    </div>`).join("") : `<div class="empty">No devices yet. On a TV, choose Add device to Orbit (during setup or in Settings › Connections › Orbit) and scan the QR code.</div>`;
+    </div>`).join("") : `<div class="empty">No devices yet. On a TV, choose Add device to Orbit (during setup or in Settings › Connections › Eclipse Orbit) and scan the QR code.</div>`;
   $("profiles").innerHTML = profiles.length ? profiles.map((p) => `
     <div class="row">
       <div class="grow">${esc(p.name)}</div>

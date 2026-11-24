@@ -277,6 +277,17 @@ fun Application.orbit(config: OrbitConfig, store: Store) {
                 ?: throw HttpError(HttpStatusCode.Unauthorized, "Unknown device")
             call.respond(AssignedProfilesBody(profiles))
         }
+        put("/profiles/{id}") {
+            val device = call.device()
+            val id = call.parameters["id"]!!
+            val validId = try { java.util.UUID.fromString(id).toString() == id } catch (_: IllegalArgumentException) { false }
+            if (!validId) throw HttpError(HttpStatusCode.BadRequest, "Invalid user ID")
+            val name = validName(call.receive<NameBody>().name)
+            val profile = try { store.createDeviceProfile(device.id, id, name) }
+            catch (_: IllegalArgumentException) { throw HttpError(HttpStatusCode.Conflict, "User ID already exists") }
+            if (profile == null) throw HttpError(HttpStatusCode.Unauthorized, "Unknown device")
+            call.respond(profile)
+        }
         get("/passphrase-verifier") {
             val device = call.device()
             val (found, verifier) = store.passphraseVerifier(device.id)

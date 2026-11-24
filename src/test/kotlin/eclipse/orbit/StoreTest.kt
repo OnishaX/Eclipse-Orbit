@@ -11,6 +11,28 @@ import java.util.Comparator
 
 class StoreTest {
     @Test
+    fun `device user creation is assigned atomically and retry safe`() {
+        val directory = createTempDirectory("orbit-create-test")
+        try {
+            val store = Store(directory)
+            val (device, _) = store.addDevice("TV", "Model")
+            val (other, _) = store.addDevice("Other", "Model")
+            val id = java.util.UUID.randomUUID().toString()
+            val created = requireNotNull(store.createDeviceProfile(device.id, id, "Sam"))
+            assertEquals(created, store.createDeviceProfile(device.id, id, "Renamed locally"))
+            assertEquals(listOf(AssignedProfile(created, null)), Store(directory).assignedProfiles(device.id))
+            assertEquals(emptyList(), store.assignedProfiles(other.id))
+            assertFailsWith<IllegalArgumentException> { store.createDeviceProfile(other.id, id, "Sam") }
+            assertNull(store.createDeviceProfile("missing", java.util.UUID.randomUUID().toString(), "Sam"))
+            assertEquals(listOf(created), store.profiles())
+        } finally {
+            Files.walk(directory).use { paths ->
+                paths.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists)
+            }
+        }
+    }
+
+    @Test
     fun `passphrase verifier is write once and survives concurrent initializers and restart`() {
         val directory = createTempDirectory("orbit-verifier-test")
         try {

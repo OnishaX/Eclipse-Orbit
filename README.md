@@ -51,7 +51,7 @@ Then, on a NAS or any other machine, you need only `compose.yaml` with
 ## Add device to Orbit
 
 1. On the TV, choose **Add device to Orbit** during onboarding or in
-   **Settings › Connections › Orbit**. The TV finds the server, calls `POST /api/v1/pair`, and
+   **Settings › Connections › Eclipse Orbit**. The TV finds the server, calls `POST /api/v1/pair`, and
    shows `pairUrl` as a QR code with the six-character code.
 2. Scan the QR code with your phone, sign in to the dashboard, check that the
    code matches the TV, name the device, and choose **Add to Orbit**.
@@ -61,11 +61,17 @@ Then, on a NAS or any other machine, you need only `compose.yaml` with
 Pairing codes expire after 10 minutes by default (`ORBIT_PAIRING_TTL_SECONDS`).
 
 The dashboard can assign Orbit users to a device. On the TV, open
-**Settings › Connections › Orbit**, set the same strong Orbit passphrase on
-each device, and choose **Orbit users**. For each assigned user, add a separate
-local user or explicitly link an existing one. Linking a PIN-protected user
-requires the PIN, and a settings choice is offered when necessary. New users
-without an existing Orbit profile start without a PIN.
+**Settings › Connections › Eclipse Orbit › server name**, set the same strong
+Orbit passphrase on each device, and choose **Add users** to import assigned
+users as separate TV users. To link an existing TV user, open **Settings ›
+Users › user › Connections › Eclipse**. Linking a PIN-protected user requires
+the PIN, and a settings choice is offered when necessary. Imported users without
+an existing Orbit profile start without a PIN.
+
+When creating a TV user, **Connect to Eclipse Orbit** can create and assign a new
+Orbit account for that device. The switch defaults on when the TV is paired.
+Paired devices are permitted to create and assign new Orbit users; the local
+user remains available if account creation fails.
 
 Linked users sync while the Eclipse launcher activity is running. Remote
 changes are deferred until Home is safe to update; conflicts require an explicit
@@ -95,6 +101,7 @@ Device requests send `Authorization: Bearer <token>`.
 | `GET /api/v1/me`, `GET /api/v1/devices`, `GET /api/v1/profiles` | Device, peer devices and Eclipse users |
 | `GET /api/v1/profile-vaults`, `PUT /api/v1/profile-vaults/{id}` | Encrypted-profile storage foundation; not yet used by Eclipse |
 | `GET /api/v1/assigned-profiles` | Assigned users and their encrypted profiles in one consistent response |
+| `PUT /api/v1/profiles/{id}` | Create and assign a user to the requesting device; retries with the same ID are idempotent |
 | `GET` / `PUT /api/v1/passphrase-verifier` | Read or initialize the encrypted, write-once shared-passphrase verifier |
 | `DELETE /api/v1/me` | Leave Orbit (removes this device and its backup) |
 | `PUT` / `GET /api/v1/backup` | Store or retrieve a device's JSON backup (not yet used by Eclipse; not encrypted by Orbit) |
