@@ -1,0 +1,25 @@
+services:
+  orbit:
+    build: .
+    # Once published, use the prebuilt image instead of building (remove `build`):
+    # image: ghcr.io/onishax/orbit:latest
+    container_name: orbit
+    restart: unless-stopped
+    # Host networking lets Eclipse devices find the server via UDP broadcast and keeps
+    # future peer-to-peer call traffic on the LAN. Remove it and uncomment `ports` if you
+    # only need the dashboard/API (devices will then need the server URL entered manually).
+    network_mode: host
+    # ports:
+    #   - "7340:7340/tcp"
+    #   - "7341:7341/udp"
+    environment:
+      ORBIT_SERVER_NAME: "Orbit"
+      # Optional: create the admin on first start instead of in the dashboard.
+      # ORBIT_ADMIN_PASSWORD: "change-me"
+      # Optional: URL encoded into pairing QR codes when behind a reverse proxy.
+      # ORBIT_PUBLIC_URL: "https://orbit.home.example"
+    volumes:
+      - orbit-data:/data
+
+volumes:
+  orbit-data:
