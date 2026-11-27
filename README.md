@@ -73,6 +73,14 @@ Orbit account for that device. The switch defaults on when the TV is paired.
 Paired devices are permitted to create and assign new Orbit users; the local
 user remains available if account creation fails.
 
+Eclipse TV 1.5.3 and newer can also sync Jellyfin server addresses, server names
+and each linked user's sign-ins inside the passphrase-encrypted user profile.
+Orbit stores only the encrypted payload; it cannot read the Jellyfin tokens.
+Update all participating TVs before using this expanded profile format.
+Each TV installs its bundled Jellyfin plugin when synced connections exist.
+On the TV's Orbit page, the left-footer **Refresh** action reloads server
+information and synchronizes linked users; it does not pair an unjoined TV.
+
 Linked users sync while the Eclipse launcher activity is running. Remote
 changes are deferred until Home is safe to update; conflicts require an explicit
 choice in Orbit users. Assignments never automatically remove local users.
@@ -99,7 +107,7 @@ Device requests send `Authorization: Bearer <token>`.
 | `GET /api/v1/info` | Server identity (no authentication) |
 | `POST /api/v1/pair`, `POST /api/v1/pair/{code}/poll` | QR pairing |
 | `GET /api/v1/me`, `GET /api/v1/devices`, `GET /api/v1/profiles` | Device, peer devices and Eclipse users |
-| `GET /api/v1/profile-vaults`, `PUT /api/v1/profile-vaults/{id}` | Encrypted-profile storage foundation; not yet used by Eclipse |
+| `GET /api/v1/profile-vaults`, `PUT /api/v1/profile-vaults/{id}` | Passphrase-encrypted user profiles, including Jellyfin connections on supported TVs |
 | `GET /api/v1/assigned-profiles` | Assigned users and their encrypted profiles in one consistent response |
 | `PUT /api/v1/profiles/{id}` | Create and assign a user to the requesting device; retries with the same ID are idempotent |
 | `GET` / `PUT /api/v1/passphrase-verifier` | Read or initialize the encrypted, write-once shared-passphrase verifier |

@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "eclipse"
-version = "0.1.0"
+version = "0.1.1"
 
 val ktorVersion = "3.6.1"
 
